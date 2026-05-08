@@ -1,0 +1,1941 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Metronome Enhanced</title>
+    <style>
+        :root {
+            /* Design Tokens */
+            --bg-color: #0a0a0a;
+            --panel-bg: rgba(20, 20, 20, 0.95);
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+            --accent-color: #00ff88;
+            --flash-color: #ff0000;
+            --border-color: #333333;
+            --border-radius: 8px;
+            --spacing-unit: 8px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow: hidden;
+            transition: background-color 0.1s ease;
+        }
+
+        .flash-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0;
+            background-color: var(--flash-color);
+            z-index: 100;
+            transition: opacity 0.05s ease;
+        }
+
+        .flash-overlay.active {
+            opacity: 1;
+        }
+
+        /* Settings Info Display */
+        .settings-info {
+            position: fixed;
+            top: var(--spacing-unit);
+            left: var(--spacing-unit);
+            background: var(--panel-bg);
+            padding: 12px 16px;
+            border-radius: var(--border-radius);
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            z-index: 50;
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+        }
+
+        .settings-info .label {
+            color: var(--text-secondary);
+            margin-right: 8px;
+        }
+
+        .settings-info .value {
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+
+        .settings-info .color-preview {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            margin-left: 8px;
+            vertical-align: middle;
+            border: 1px solid var(--border-color);
+        }
+
+        /* Control Panel */
+        .control-panel {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 16px;
+            z-index: 50;
+        }
+
+        .btn {
+            background: var(--panel-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: var(--transition);
+            backdrop-filter: blur(10px);
+        }
+
+        .btn:hover {
+            background: rgba(40, 40, 40, 1);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn.primary {
+            background: var(--accent-color);
+            color: #000;
+            border-color: var(--accent-color);
+        }
+
+        .btn.primary:hover {
+            background: #00e67a;
+        }
+
+        .btn.danger {
+            background: #ff4444;
+            color: white;
+            border-color: #ff4444;
+        }
+
+        .btn.danger:hover {
+            background: #ff3333;
+        }
+
+        .btn.toggle {
+            min-width: 140px;
+        }
+
+        /* Settings Panel */
+        .settings-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--panel-bg);
+            padding: 32px;
+            border-radius: var(--border-radius);
+            min-width: 500px;
+            max-width: 90vw;
+            max-height: 90vh;
+            overflow-y: auto;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            display: none;
+        }
+
+        .settings-panel.visible {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -45%);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%);
+            }
+        }
+
+        .settings-panel h2 {
+            margin-bottom: 24px;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .settings-section {
+            margin-bottom: 24px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .settings-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .settings-section h3 {
+            margin-bottom: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .settings-group {
+            margin-bottom: 16px;
+        }
+
+        .settings-group.full-width {
+            grid-column: span 2;
+        }
+
+        .settings-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .settings-group input[type="number"],
+        .settings-group input[type="text"],
+        .settings-group select {
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(30, 30, 30, 1);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .settings-group input[type="number"]:focus,
+        .settings-group input[type="text"]:focus,
+        .settings-group select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .settings-group input[type="color"] {
+            width: 100%;
+            height: 40px;
+            padding: 4px;
+            background: rgba(30, 30, 30, 1);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            cursor: pointer;
+        }
+
+        /* Color Presets */
+        .color-presets {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 6px;
+            margin-top: 12px;
+        }
+
+        .color-preset {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .color-preset:hover {
+            transform: scale(1.2);
+            z-index: 1;
+        }
+
+        .color-preset.selected {
+            border: 2px solid var(--accent-color);
+            box-shadow: 0 0 8px var(--accent-color);
+        }
+
+        .color-format-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .color-format-btn {
+            flex: 1;
+            padding: 8px;
+            background: rgba(30, 30, 30, 1);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .color-format-btn.active {
+            background: var(--accent-color);
+            color: #000;
+            border-color: var(--accent-color);
+        }
+
+        .color-input-container {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .color-input-container input[type="text"] {
+            flex: 1;
+            padding: 10px 12px;
+            background: rgba(30, 30, 30, 1);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .color-input-container input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        /* Preset Management */
+        .preset-controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .preset-controls .btn {
+            flex: 1;
+            font-size: 12px;
+            padding: 8px 12px;
+        }
+
+        .preset-list {
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(30, 30, 30, 0.5);
+            border-radius: var(--border-radius);
+            padding: 8px;
+        }
+
+        .preset-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            background: rgba(40, 40, 40, 0.5);
+            border-radius: 4px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .preset-item:hover {
+            background: rgba(50, 50, 50, 0.8);
+        }
+
+        .preset-item.active {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid var(--accent-color);
+        }
+
+        .preset-info {
+            flex: 1;
+        }
+
+        .preset-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .preset-details {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-family: 'Courier New', monospace;
+        }
+
+        .preset-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        .preset-action-btn {
+            padding: 4px 8px;
+            font-size: 11px;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .preset-action-btn:hover {
+            color: var(--text-primary);
+            border-color: var(--text-primary);
+        }
+
+        .preset-action-btn.delete:hover {
+            color: #ff4444;
+            border-color: #ff4444;
+        }
+
+        .default-badge {
+            display: inline-block;
+            background: var(--accent-color);
+            color: #000;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 8px;
+            font-weight: 600;
+        }
+
+        .settings-footer {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+            justify-content: flex-end;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 24px;
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: var(--transition);
+        }
+
+        .close-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        /* Overlay backdrop */
+        .overlay-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 90;
+            display: none;
+            backdrop-filter: blur(4px);
+        }
+
+        .overlay-backdrop.visible {
+            display: block;
+        }
+
+        /* Status indicator */
+        .status-indicator {
+            position: fixed;
+            top: var(--spacing-unit);
+            right: var(--spacing-unit);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--panel-bg);
+            padding: 8px 16px;
+            border-radius: var(--border-radius);
+            font-size: 12px;
+            z-index: 50;
+            border: 1px solid var(--border-color);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #666;
+            transition: var(--transition);
+        }
+
+        .status-dot.active {
+            background: var(--accent-color);
+            box-shadow: 0 0 8px var(--accent-color);
+        }
+
+        .status-dot.flashing {
+            background: #ff0000;
+            box-shadow: 0 0 16px #ff0000;
+        }
+
+        /* Hidden file input */
+        #fileInput {
+            display: none;
+        }
+
+        /* Modal for preset naming */
+        .modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--panel-bg);
+            padding: 24px;
+            border-radius: var(--border-radius);
+            min-width: 300px;
+            z-index: 200;
+            border: 1px solid var(--border-color);
+            display: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal.visible {
+            display: block;
+        }
+
+        .modal h3 {
+            margin-bottom: 16px;
+            font-size: 16px;
+        }
+
+        .modal input[type="text"] {
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(30, 30, 30, 1);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        /* Notification */
+        .notification {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--accent-color);
+            color: #000;
+            padding: 12px 24px;
+            border-radius: var(--border-radius);
+            font-weight: 500;
+            z-index: 300;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .notification.visible {
+            opacity: 1;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .settings-panel {
+                width: 95%;
+                min-width: unset;
+                padding: 20px;
+                max-height: 95vh;
+            }
+
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .settings-group.full-width {
+                grid-column: span 1;
+            }
+
+            .control-panel {
+                width: 90%;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .btn {
+                flex: 1;
+                min-width: 120px;
+            }
+
+            .settings-info {
+                font-size: 10px;
+                padding: 8px 12px;
+            }
+
+            .color-presets {
+                grid-template-columns: repeat(6, 1fr);
+            }
+        }
+
+        /* Scrollbar styling */
+        .settings-panel::-webkit-scrollbar,
+        .preset-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .settings-panel::-webkit-scrollbar-track,
+        .preset-list::-webkit-scrollbar-track {
+            background: rgba(30, 30, 30, 0.5);
+            border-radius: 4px;
+        }
+
+        .settings-panel::-webkit-scrollbar-thumb,
+        .preset-list::-webkit-scrollbar-thumb {
+            background: rgba(60, 60, 60, 1);
+            border-radius: 4px;
+        }
+
+        .settings-panel::-webkit-scrollbar-thumb:hover,
+        .preset-list::-webkit-scrollbar-thumb:hover {
+            background: rgba(80, 80, 80, 1);
+        }
+
+        /* HSL Inputs */
+        .hsl-inputs {
+            margin-top: 12px;
+            padding: 12px;
+            background: rgba(30, 30, 30, 0.5);
+            border-radius: var(--border-radius);
+        }
+
+        /* RGB Inputs */
+        .rgb-inputs {
+            margin-top: 12px;
+            padding: 12px;
+            background: rgba(30, 30, 30, 0.5);
+            border-radius: var(--border-radius);
+        }
+
+        .rgb-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .rgb-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .rgb-row label {
+            width: 24px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .rgb-row input[type="number"] {
+            flex: 1;
+            padding: 8px 10px;
+            background: rgba(40, 40, 40, 1);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            text-align: center;
+        }
+
+        .rgb-row input[type="number"]:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .hsl-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .hsl-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .hsl-row label {
+            width: 24px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .hsl-row input[type="range"] {
+            flex: 1;
+            height: 6px;
+            background: rgba(60, 60, 60, 1);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .hsl-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .hsl-row input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .hsl-value {
+            width: 48px;
+            text-align: right;
+            font-size: 11px;
+            font-family: 'Courier New', monospace;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <!-- Flash Overlay -->
+    <div class="flash-overlay" id="flashOverlay"></div>
+
+    <!-- Settings Info Display -->
+    <div class="settings-info" id="settingsInfo">
+        <div><span class="label">Flash Duration:</span><span class="value" id="infoFlashDuration">0.1s</span></div>
+        <div><span class="label">Flash Interval:</span><span class="value" id="infoFlashInterval">1s</span></div>
+        <div><span class="label">Batch Size:</span><span class="value" id="infoBatchSize">3</span></div>
+        <div><span class="label">Batch Interval:</span><span class="value" id="infoBatchInterval">3s</span></div>
+        <div><span class="label">Flash Color:</span><span class="value" id="infoFlashColor">#ff0000</span><span class="color-preview" id="flashColorPreview" style="background: #ff0000;"></span></div>
+        <div><span class="label">BG Color:</span><span class="value" id="infoBgColor">#0a0a0a</span><span class="color-preview" id="bgColorPreview" style="background: #0a0a0a;"></span></div>
+        <div id="presetInfo"></div>
+    </div>
+
+    <!-- Status Indicator -->
+    <div class="status-indicator">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Stopped</span>
+    </div>
+
+    <!-- Control Panel -->
+    <div class="control-panel">
+        <button class="btn" id="settingsBtn">⚙️ Settings</button>
+        <button class="btn primary toggle" id="toggleBtn">▶ Start</button>
+    </div>
+
+    <!-- Settings Panel -->
+    <div class="overlay-backdrop" id="overlayBackdrop"></div>
+    <div class="settings-panel" id="settingsPanel">
+        <button class="close-btn" id="closeSettingsBtn">✕</button>
+        <h2>Settings</h2>
+
+        <!-- Timing Settings -->
+        <div class="settings-section">
+            <h3>Timing</h3>
+            <div class="settings-grid">
+                <div class="settings-group">
+                    <label>Flash Duration (seconds)</label>
+                    <input type="number" id="flashDuration" min="0.01" max="10" step="0.01" value="0.1">
+                </div>
+                <div class="settings-group">
+                    <label>Flash Interval (seconds)</label>
+                    <input type="number" id="flashInterval" min="0.1" max="60" step="0.1" value="1">
+                </div>
+                <div class="settings-group">
+                    <label>Batch Size</label>
+                    <input type="number" id="batchSize" min="1" max="100" step="1" value="3">
+                </div>
+                <div class="settings-group">
+                    <label>Batch Interval (seconds)</label>
+                    <input type="number" id="batchInterval" min="0.1" max="60" step="0.1" value="3">
+                </div>
+            </div>
+        </div>
+
+        <!-- Color Settings -->
+        <div class="settings-section">
+            <h3>Colors</h3>
+            <div class="settings-grid">
+                <div class="settings-group">
+                    <label>Flash Color</label>
+                    <div class="color-format-selector" id="flashColorFormat">
+                        <button class="color-format-btn active" data-format="hex">HEX</button>
+                        <button class="color-format-btn" data-format="rgb">RGB</button>
+                        <button class="color-format-btn" data-format="hsl">HSL</button>
+                    </div>
+                    <div class="color-input-container hex-input" id="flashColorContainer">
+                        <input type="text" id="flashColorInput" value="#ff0000" placeholder="#ff0000">
+                        <input type="color" id="flashColorPicker" value="#ff0000">
+                    </div>
+                    <div class="rgb-inputs" id="flashColorRgb" style="display: none;">
+                        <div class="rgb-row">
+                            <label>R</label>
+                            <input type="number" id="flashColorR" min="0" max="255" value="255">
+                        </div>
+                        <div class="rgb-row">
+                            <label>G</label>
+                            <input type="number" id="flashColorG" min="0" max="255" value="0">
+                        </div>
+                        <div class="rgb-row">
+                            <label>B</label>
+                            <input type="number" id="flashColorB" min="0" max="255" value="0">
+                        </div>
+                    </div>
+                    <div class="hsl-inputs" id="flashColorHsl" style="display: none;">
+                        <div class="hsl-row">
+                            <label>H</label>
+                            <input type="range" id="flashColorH" min="0" max="360" value="0">
+                            <span class="hsl-value" id="flashColorHValue">0°</span>
+                        </div>
+                        <div class="hsl-row">
+                            <label>S</label>
+                            <input type="range" id="flashColorS" min="0" max="100" value="100">
+                            <span class="hsl-value" id="flashColorSValue">100%</span>
+                        </div>
+                        <div class="hsl-row">
+                            <label>L</label>
+                            <input type="range" id="flashColorL" min="0" max="100" value="50">
+                            <span class="hsl-value" id="flashColorLValue">50%</span>
+                        </div>
+                    </div>
+                    <div class="color-presets" id="flashColorPresets"></div>
+                </div>
+                <div class="settings-group">
+                    <label>Background Color</label>
+                    <div class="color-format-selector" id="bgColorFormat">
+                        <button class="color-format-btn active" data-format="hex">HEX</button>
+                        <button class="color-format-btn" data-format="rgb">RGB</button>
+                        <button class="color-format-btn" data-format="hsl">HSL</button>
+                    </div>
+                    <div class="color-input-container hex-input" id="bgColorContainer">
+                        <input type="text" id="bgColorInput" value="#0a0a0a" placeholder="#0a0a0a">
+                        <input type="color" id="bgColorPicker" value="#0a0a0a">
+                    </div>
+                    <div class="rgb-inputs" id="bgColorRgb" style="display: none;">
+                        <div class="rgb-row">
+                            <label>R</label>
+                            <input type="number" id="bgColorR" min="0" max="255" value="10">
+                        </div>
+                        <div class="rgb-row">
+                            <label>G</label>
+                            <input type="number" id="bgColorG" min="0" max="255" value="10">
+                        </div>
+                        <div class="rgb-row">
+                            <label>B</label>
+                            <input type="number" id="bgColorB" min="0" max="255" value="10">
+                        </div>
+                    </div>
+                    <div class="hsl-inputs" id="bgColorHsl" style="display: none;">
+                        <div class="hsl-row">
+                            <label>H</label>
+                            <input type="range" id="bgColorH" min="0" max="360" value="0">
+                            <span class="hsl-value" id="bgColorHValue">0°</span>
+                        </div>
+                        <div class="hsl-row">
+                            <label>S</label>
+                            <input type="range" id="bgColorS" min="0" max="100" value="0">
+                            <span class="hsl-value" id="bgColorSValue">0%</span>
+                        </div>
+                        <div class="hsl-row">
+                            <label>L</label>
+                            <input type="range" id="bgColorL" min="0" max="100" value="4">
+                            <span class="hsl-value" id="bgColorLValue">4%</span>
+                        </div>
+                    </div>
+                    <div class="color-presets" id="bgColorPresets"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preset Management -->
+        <div class="settings-section">
+            <h3>Presets</h3>
+            <div class="preset-controls">
+                <button class="btn" id="savePresetBtn">💾 Save Preset</button>
+                <button class="btn" id="loadPresetBtn">📁 Load Preset</button>
+                <button class="btn" id="exportPresetBtn">📤 Export</button>
+                <button class="btn" id="importPresetBtn">📥 Import</button>
+                <button class="btn" id="saveConfigBtn">📋 Save Config</button>
+            </div>
+            <div class="preset-list" id="presetList">
+                <!-- Presets will be dynamically added here -->
+            </div>
+        </div>
+
+        <div class="settings-footer">
+            <button class="btn" id="cancelBtn">Cancel</button>
+            <button class="btn primary" id="applyBtn">Apply</button>
+        </div>
+    </div>
+
+    <!-- Preset Name Modal -->
+    <div class="overlay-backdrop" id="modalBackdrop"></div>
+    <div class="modal" id="presetModal">
+        <h3 id="modalTitle">Save Preset</h3>
+        <input type="text" id="presetNameInput" placeholder="Enter preset name...">
+        <div class="modal-buttons">
+            <button class="btn" id="modalCancelBtn">Cancel</button>
+            <button class="btn primary" id="modalOkBtn">OK</button>
+        </div>
+    </div>
+
+    <!-- Hidden file input -->
+    <input type="file" id="fileInput" accept=".json">
+
+    <!-- Notification -->
+    <div class="notification" id="notification"></div>
+
+    <script>
+        // ==================== State Management ====================
+        const state = {
+            settings: {
+                flashDuration: 0.1,
+                flashInterval: 1,
+                batchSize: 3,
+                batchInterval: 3,
+                flashColor: '#ff0000',
+                bgColor: '#0a0a0a'
+            },
+            isRunning: false,
+            currentBatch: 0,
+            currentFlash: 0,
+            timeouts: [],
+            intervals: [],
+            presets: [],
+            currentPreset: null,
+            config: {}
+        };
+
+        // ==================== Color Presets ====================
+        const colorPresets = {
+            flash: [
+                '#ff0000', '#00ff00', '#0000ff', '#ffff00',
+                '#ff00ff', '#00ffff', '#ff8800', '#8800ff',
+                '#ffffff', '#ff4444', '#44ff44', '#4444ff',
+                '#ffff44', '#ff44ff', '#44ffff', '#ffaa00'
+            ],
+            background: [
+                '#000000', '#0a0a0a', '#1a1a2e', '#16213e',
+                '#2d132c', '#1e1e1e', '#2c3e50', '#34495e',
+                '#0f0f23', '#1a1a1a', '#2d2d2d', '#3d3d3d',
+                '#4a4a4a', '#5a5a5a', '#6a6a6a', '#7a7a7a'
+            ]
+        };
+
+        // ==================== DOM Elements ====================
+        const flashOverlay = document.getElementById('flashOverlay');
+        const settingsPanel = document.getElementById('settingsPanel');
+        const overlayBackdrop = document.getElementById('overlayBackdrop');
+        const modalBackdrop = document.getElementById('modalBackdrop');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const applyBtn = document.getElementById('applyBtn');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const notification = document.getElementById('notification');
+
+        // Settings inputs
+        const flashDurationInput = document.getElementById('flashDuration');
+        const flashIntervalInput = document.getElementById('flashInterval');
+        const batchSizeInput = document.getElementById('batchSize');
+        const batchIntervalInput = document.getElementById('batchInterval');
+        const flashColorInput = document.getElementById('flashColorInput');
+        const flashColorPicker = document.getElementById('flashColorPicker');
+        const flashColorContainer = document.getElementById('flashColorContainer');
+        const flashColorRgb = document.getElementById('flashColorRgb');
+        const flashColorHsl = document.getElementById('flashColorHsl');
+        const flashColorR = document.getElementById('flashColorR');
+        const flashColorG = document.getElementById('flashColorG');
+        const flashColorB = document.getElementById('flashColorB');
+        const flashColorH = document.getElementById('flashColorH');
+        const flashColorS = document.getElementById('flashColorS');
+        const flashColorL = document.getElementById('flashColorL');
+        const flashColorHValue = document.getElementById('flashColorHValue');
+        const flashColorSValue = document.getElementById('flashColorSValue');
+        const flashColorLValue = document.getElementById('flashColorLValue');
+        const bgColorInput = document.getElementById('bgColorInput');
+        const bgColorPicker = document.getElementById('bgColorPicker');
+        const bgColorContainer = document.getElementById('bgColorContainer');
+        const bgColorRgb = document.getElementById('bgColorRgb');
+        const bgColorHsl = document.getElementById('bgColorHsl');
+        const bgColorR = document.getElementById('bgColorR');
+        const bgColorG = document.getElementById('bgColorG');
+        const bgColorB = document.getElementById('bgColorB');
+        const bgColorH = document.getElementById('bgColorH');
+        const bgColorS = document.getElementById('bgColorS');
+        const bgColorL = document.getElementById('bgColorL');
+        const bgColorHValue = document.getElementById('bgColorHValue');
+        const bgColorSValue = document.getElementById('bgColorSValue');
+        const bgColorLValue = document.getElementById('bgColorLValue');
+
+        // Info display elements
+        const infoFlashDuration = document.getElementById('infoFlashDuration');
+        const infoFlashInterval = document.getElementById('infoFlashInterval');
+        const infoBatchSize = document.getElementById('infoBatchSize');
+        const infoBatchInterval = document.getElementById('infoBatchInterval');
+        const infoFlashColor = document.getElementById('infoFlashColor');
+        const infoBgColor = document.getElementById('infoBgColor');
+        const flashColorPreview = document.getElementById('flashColorPreview');
+        const bgColorPreview = document.getElementById('bgColorPreview');
+        const presetInfo = document.getElementById('presetInfo');
+
+        // Preset management elements
+        const savePresetBtn = document.getElementById('savePresetBtn');
+        const loadPresetBtn = document.getElementById('loadPresetBtn');
+        const exportPresetBtn = document.getElementById('exportPresetBtn');
+        const importPresetBtn = document.getElementById('importPresetBtn');
+        const presetList = document.getElementById('presetList');
+        const fileInput = document.getElementById('fileInput');
+
+        // Modal elements
+        const presetModal = document.getElementById('presetModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const presetNameInput = document.getElementById('presetNameInput');
+        const modalCancelBtn = document.getElementById('modalCancelBtn');
+        const modalOkBtn = document.getElementById('modalOkBtn');
+
+        // ==================== Utility Functions ====================
+        function clearTimers() {
+            state.timeouts.forEach(id => clearTimeout(id));
+            state.intervals.forEach(id => clearInterval(id));
+            state.timeouts = [];
+            state.intervals = [];
+        }
+
+        function showNotification(message) {
+            notification.textContent = message;
+            notification.classList.add('visible');
+            setTimeout(() => {
+                notification.classList.remove('visible');
+            }, 2000);
+        }
+
+        function updateSettingsDisplay() {
+            const s = state.settings;
+            infoFlashDuration.textContent = `${s.flashDuration}s`;
+            infoFlashInterval.textContent = `${s.flashInterval}s`;
+            infoBatchSize.textContent = s.batchSize;
+            infoBatchInterval.textContent = `${s.batchInterval}s`;
+            infoFlashColor.textContent = s.flashColor;
+            infoBgColor.textContent = s.bgColor;
+            flashColorPreview.style.background = s.flashColor;
+            bgColorPreview.style.background = s.bgColor;
+
+            if (state.currentPreset) {
+                presetInfo.innerHTML = `<div><span class="label">Preset:</span><span class="value">${state.currentPreset.name}</span></div>`;
+            } else {
+                presetInfo.innerHTML = '';
+            }
+        }
+
+        function applySettings() {
+            state.settings.flashDuration = parseFloat(flashDurationInput.value);
+            state.settings.flashInterval = parseFloat(flashIntervalInput.value);
+            state.settings.batchSize = parseInt(batchSizeInput.value);
+            state.settings.batchInterval = parseFloat(batchIntervalInput.value);
+
+            // Get color values based on current format
+            if (flashColorFormat === 'hex') {
+                state.settings.flashColor = flashColorInput.value;
+            } else if (flashColorFormat === 'rgb') {
+                state.settings.flashColor = `rgb(${flashColorR.value}, ${flashColorG.value}, ${flashColorB.value})`;
+            } else if (flashColorFormat === 'hsl') {
+                state.settings.flashColor = `hsl(${flashColorH.value}, ${flashColorS.value}%, ${flashColorL.value}%)`;
+            }
+
+            if (bgColorFormat === 'hex') {
+                state.settings.bgColor = bgColorInput.value;
+            } else if (bgColorFormat === 'rgb') {
+                state.settings.bgColor = `rgb(${bgColorR.value}, ${bgColorG.value}, ${bgColorB.value})`;
+            } else if (bgColorFormat === 'hsl') {
+                state.settings.bgColor = `hsl(${bgColorH.value}, ${bgColorS.value}%, ${bgColorL.value}%)`;
+            }
+
+            // Apply CSS variables
+            document.documentElement.style.setProperty('--flash-color', state.settings.flashColor);
+            document.documentElement.style.setProperty('--bg-color', state.settings.bgColor);
+
+            state.currentPreset = null;
+            updateSettingsDisplay();
+            closeSettingsPanel();
+            showNotification('Settings applied');
+        }
+
+        function openSettingsPanel() {
+            // Populate current values
+            flashDurationInput.value = state.settings.flashDuration;
+            flashIntervalInput.value = state.settings.flashInterval;
+            batchSizeInput.value = state.settings.batchSize;
+            batchIntervalInput.value = state.settings.batchInterval;
+            flashColorInput.value = state.settings.flashColor;
+            flashColorPicker.value = state.settings.flashColor;
+            bgColorInput.value = state.settings.bgColor;
+            bgColorPicker.value = state.settings.bgColor;
+
+            // Initialize RGB values if current format is RGB
+            if (state.settings.flashColor.startsWith('rgb')) {
+                const rgb = parseRgb(state.settings.flashColor);
+                if (rgb) {
+                    flashColorR.value = rgb.r;
+                    flashColorG.value = rgb.g;
+                    flashColorB.value = rgb.b;
+                    updateFlashColorRgb();
+                }
+            }
+
+            if (state.settings.bgColor.startsWith('rgb')) {
+                const rgb = parseRgb(state.settings.bgColor);
+                if (rgb) {
+                    bgColorR.value = rgb.r;
+                    bgColorG.value = rgb.g;
+                    bgColorB.value = rgb.b;
+                    updateBgColorRgb();
+                }
+            }
+
+            // Initialize HSL values if current format is HSL
+            if (state.settings.flashColor.startsWith('hsl')) {
+                const hsl = parseHsl(state.settings.flashColor);
+                flashColorH.value = hsl.h;
+                flashColorS.value = hsl.s;
+                flashColorL.value = hsl.l;
+                updateFlashColorHsl();
+            }
+
+            if (state.settings.bgColor.startsWith('hsl')) {
+                const hsl = parseHsl(state.settings.bgColor);
+                bgColorH.value = hsl.h;
+                bgColorS.value = hsl.s;
+                bgColorL.value = hsl.l;
+                updateBgColorHsl();
+            }
+
+            renderPresetList();
+            settingsPanel.classList.add('visible');
+            overlayBackdrop.classList.add('visible');
+        }
+
+        function closeSettingsPanel() {
+            settingsPanel.classList.remove('visible');
+            overlayBackdrop.classList.remove('visible');
+        }
+
+        // ==================== Metronome Logic ====================
+        function flashScreen() {
+            statusDot.classList.add('flashing');
+            flashOverlay.classList.add('active');
+
+            setTimeout(() => {
+                flashOverlay.classList.remove('active');
+                statusDot.classList.remove('flashing');
+            }, state.settings.flashDuration * 1000);
+        }
+
+        function runMetronome() {
+            if (!state.isRunning) return;
+
+            const s = state.settings;
+            const flashDelay = s.flashInterval * 1000;
+            const batchDelay = s.batchInterval * 1000;
+
+            function runBatch() {
+                if (!state.isRunning) return;
+
+                state.currentBatch++;
+                state.currentFlash = 0;
+
+                function runFlash() {
+                    if (!state.isRunning) return;
+
+                    state.currentFlash++;
+                    flashScreen();
+
+                    if (state.currentFlash < s.batchSize) {
+                        const timeoutId = setTimeout(runFlash, flashDelay);
+                        state.timeouts.push(timeoutId);
+                    } else {
+                        const timeoutId = setTimeout(runBatch, batchDelay);
+                        state.timeouts.push(timeoutId);
+                    }
+                }
+
+                const timeoutId = setTimeout(runFlash, 100);
+                state.timeouts.push(timeoutId);
+            }
+
+            runBatch();
+        }
+
+        function startMetronome() {
+            if (state.isRunning) return;
+
+            state.isRunning = true;
+            state.currentBatch = 0;
+            state.currentFlash = 0;
+
+            statusDot.classList.add('active');
+            statusText.textContent = 'Running';
+            toggleBtn.textContent = '⏹ Stop';
+            toggleBtn.classList.remove('primary');
+            toggleBtn.classList.add('danger');
+
+            runMetronome();
+        }
+
+        function stopMetronome() {
+            state.isRunning = false;
+            clearTimers();
+
+            flashOverlay.classList.remove('active');
+            statusDot.classList.remove('active');
+            statusDot.classList.remove('flashing');
+            statusText.textContent = 'Stopped';
+            toggleBtn.textContent = '▶ Start';
+            toggleBtn.classList.remove('danger');
+            toggleBtn.classList.add('primary');
+        }
+
+        function toggleMetronome() {
+            if (state.isRunning) {
+                stopMetronome();
+            } else {
+                startMetronome();
+            }
+        }
+
+        // ==================== Color Handling ====================
+        let flashColorFormat = 'hex';
+        let bgColorFormat = 'hex';
+
+        function renderColorPresets() {
+            // Flash color presets
+            const flashPresetsContainer = document.getElementById('flashColorPresets');
+            flashPresetsContainer.innerHTML = colorPresets.flash.map(color =>
+                `<div class="color-preset" style="background: ${color}" data-color="${color}" data-type="flash"></div>`
+            ).join('');
+
+            // Background color presets
+            const bgPresetsContainer = document.getElementById('bgColorPresets');
+            bgPresetsContainer.innerHTML = colorPresets.background.map(color =>
+                `<div class="color-preset" style="background: ${color}" data-color="${color}" data-type="bg"></div>`
+            ).join('');
+
+            // Add click handlers
+            document.querySelectorAll('.color-preset').forEach(preset => {
+                preset.addEventListener('click', () => {
+                    const color = preset.dataset.color;
+                    const type = preset.dataset.type;
+
+                    if (type === 'flash') {
+                        flashColorInput.value = color;
+                        flashColorPicker.value = color;
+                    } else {
+                        bgColorInput.value = color;
+                        bgColorPicker.value = color;
+                    }
+
+                    // Update selected state
+                    document.querySelectorAll(`.color-preset[data-type="${type}"]`).forEach(p => {
+                        p.classList.remove('selected');
+                    });
+                    preset.classList.add('selected');
+                });
+            });
+        }
+
+        function syncColorInputs(input, picker, format) {
+            const color = input.value;
+
+            if (format === 'hex' && color.startsWith('#')) {
+                picker.value = color;
+            } else {
+                try {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.style.color = color;
+                    document.body.appendChild(tempDiv);
+                    const computed = window.getComputedStyle(tempDiv).color;
+                    document.body.removeChild(tempDiv);
+
+                    const rgb = computed.match(/\d+/g);
+                    if (rgb) {
+                        const hex = '#' + rgb.map(x => parseInt(x).toString(16).padStart(2, '0')).join('');
+                        picker.value = hex;
+                    }
+                } catch (e) {
+                    console.log('Color conversion error:', e);
+                }
+            }
+        }
+
+        function updateColorFormatButtons(containerId, activeFormat) {
+            const container = document.getElementById(containerId);
+            container.querySelectorAll('.color-format-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.format === activeFormat);
+            });
+        }
+
+        function updateColorInputPlaceholder(input, format) {
+            const placeholders = {
+                hex: '#ff0000',
+                rgb: 'rgb(255, 0, 0)',
+                hsl: 'hsl(0, 100%, 50%)'
+            };
+            input.placeholder = placeholders[format];
+        }
+
+        // ==================== Preset Management ====================
+        function createPresetObject(name) {
+            // Read current values from inputs, not from state.settings
+            let currentFlashColor, currentBgColor;
+
+            if (flashColorFormat === 'hex') {
+                currentFlashColor = flashColorInput.value;
+            } else if (flashColorFormat === 'rgb') {
+                currentFlashColor = `rgb(${flashColorR.value}, ${flashColorG.value}, ${flashColorB.value})`;
+            } else if (flashColorFormat === 'hsl') {
+                currentFlashColor = `hsl(${flashColorH.value}, ${flashColorS.value}%, ${flashColorL.value}%)`;
+            }
+
+            if (bgColorFormat === 'hex') {
+                currentBgColor = bgColorInput.value;
+            } else if (bgColorFormat === 'rgb') {
+                currentBgColor = `rgb(${bgColorR.value}, ${bgColorG.value}, ${bgColorB.value})`;
+            } else if (bgColorFormat === 'hsl') {
+                currentBgColor = `hsl(${bgColorH.value}, ${bgColorS.value}%, ${bgColorL.value}%)`;
+            }
+
+            return {
+                name: name,
+                timestamp: Date.now(),
+                settings: {
+                    flashDuration: parseFloat(flashDurationInput.value),
+                    flashInterval: parseFloat(flashIntervalInput.value),
+                    batchSize: parseInt(batchSizeInput.value),
+                    batchInterval: parseFloat(batchIntervalInput.value),
+                    flashColor: currentFlashColor,
+                    bgColor: currentBgColor
+                }
+            };
+        }
+
+        function loadPreset(preset) {
+            state.settings = { ...preset.settings };
+            state.currentPreset = preset;
+
+            // Update UI
+            flashDurationInput.value = state.settings.flashDuration;
+            flashIntervalInput.value = state.settings.flashInterval;
+            batchSizeInput.value = state.settings.batchSize;
+            batchIntervalInput.value = state.settings.batchInterval;
+            flashColorInput.value = state.settings.flashColor;
+            flashColorPicker.value = state.settings.flashColor;
+            bgColorInput.value = state.settings.bgColor;
+            bgColorPicker.value = state.settings.bgColor;
+
+            // Initialize RGB values if preset uses RGB format
+            if (state.settings.flashColor.startsWith('rgb')) {
+                const rgb = parseRgb(state.settings.flashColor);
+                if (rgb) {
+                    flashColorR.value = rgb.r;
+                    flashColorG.value = rgb.g;
+                    flashColorB.value = rgb.b;
+                    updateFlashColorRgb();
+                }
+            }
+
+            if (state.settings.bgColor.startsWith('rgb')) {
+                const rgb = parseRgb(state.settings.bgColor);
+                if (rgb) {
+                    bgColorR.value = rgb.r;
+                    bgColorG.value = rgb.g;
+                    bgColorB.value = rgb.b;
+                    updateBgColorRgb();
+                }
+            }
+
+            // Initialize HSL values if preset uses HSL format
+            if (state.settings.flashColor.startsWith('hsl')) {
+                const hsl = parseHsl(state.settings.flashColor);
+                flashColorH.value = hsl.h;
+                flashColorS.value = hsl.s;
+                flashColorL.value = hsl.l;
+                updateFlashColorHsl();
+            }
+
+            if (state.settings.bgColor.startsWith('hsl')) {
+                const hsl = parseHsl(state.settings.bgColor);
+                bgColorH.value = hsl.h;
+                bgColorS.value = hsl.s;
+                bgColorL.value = hsl.l;
+                updateBgColorHsl();
+            }
+
+            applySettings();
+            showNotification(`Preset "${preset.name}" loaded`);
+        }
+
+        function deletePreset(presetName) {
+            state.presets = state.presets.filter(p => p.name !== presetName);
+            savePresetsToStorage();
+            renderPresetList();
+            showNotification(`Preset "${presetName}" deleted`);
+        }
+
+        function renderPresetList() {
+            presetList.innerHTML = state.presets.length === 0
+                ? '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">No presets saved</div>'
+                : state.presets.map(preset => `
+                    <div class="preset-item ${state.currentPreset?.name === preset.name ? 'active' : ''}">
+                        <div class="preset-info" onclick="loadPresetByName('${preset.name}')">
+                            <div class="preset-name">
+                                ${preset.name}
+                                ${state.config.defaultPreset === preset.name ? '<span class="default-badge">⭐ Default</span>' : ''}
+                            </div>
+                            <div class="preset-details">
+                                ${preset.settings.flashDuration}s / ${preset.settings.flashInterval}s /
+                                ${preset.settings.batchSize}x / ${preset.settings.batchInterval}s
+                            </div>
+                        </div>
+                        <div class="preset-actions">
+                            <button class="preset-action-btn" onclick="setDefaultPreset('${preset.name}')">⭐</button>
+                            <button class="preset-action-btn delete" onclick="deletePresetByName('${preset.name}')">🗑️</button>
+                        </div>
+                    </div>
+                `).join('');
+        }
+
+        function loadPresetByName(name) {
+            const preset = state.presets.find(p => p.name === name);
+            if (preset) {
+                loadPreset(preset);
+            }
+        }
+
+        function deletePresetByName(name) {
+            if (confirm(`Delete preset "${name}"?`)) {
+                deletePreset(name);
+            }
+        }
+
+        function setDefaultPreset(name) {
+            state.config.defaultPreset = name;
+            showNotification(`"${name}" set as default preset`);
+            renderPresetList();
+            saveConfigToFile();
+        }
+
+        function saveConfigToFile() {
+            const config = {
+                defaultPreset: state.config.defaultPreset,
+                autoStart: state.config.autoStart,
+                description: "Visual Metronome Configuration File",
+                presets: state.presets
+            };
+
+            const dataStr = JSON.stringify(config, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'config.json';
+            link.click();
+            URL.revokeObjectURL(url);
+            showNotification('Config file downloaded');
+        }
+
+        function savePresetsToStorage() {
+            localStorage.setItem('metronome-presets', JSON.stringify(state.presets));
+        }
+
+        function loadPresetsFromStorage() {
+            const stored = localStorage.getItem('metronome-presets');
+            if (stored) {
+                state.presets = JSON.parse(stored);
+            }
+        }
+
+        function exportCurrentPreset() {
+            const preset = createPresetObject('exported-preset');
+            const dataStr = JSON.stringify(preset, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `metronome-preset-${Date.now()}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+            showNotification('Preset exported');
+        }
+
+        function importPreset(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (imported.name && imported.settings) {
+                        imported.name = `${imported.name} (imported)`;
+                        state.presets.push(imported);
+                        savePresetsToStorage();
+                        renderPresetList();
+                        showNotification('Preset imported');
+                    } else {
+                        throw new Error('Invalid preset format');
+                    }
+                } catch (error) {
+                    alert('Invalid preset file');
+                    console.error(error);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = ''; // Reset file input
+        }
+
+        // ==================== Config Loading ====================
+        async function loadConfig() {
+            try {
+                const response = await fetch('config.json');
+                if (response.ok) {
+                    state.config = await response.json();
+
+                    // Load presets from config if available
+                    if (state.config.presets && Array.isArray(state.config.presets)) {
+                        state.config.presets.forEach(configPreset => {
+                            // Add config presets to local storage if they don't already exist
+                            const existingIndex = state.presets.findIndex(p => p.name === configPreset.name);
+                            if (existingIndex === -1) {
+                                state.presets.push(configPreset);
+                            }
+                        });
+                        savePresetsToStorage();
+                    }
+
+                    applyConfig();
+                }
+            } catch (error) {
+                console.log('No config.json found or error loading config:', error);
+            }
+        }
+
+        function applyConfig() {
+            if (state.config.defaultPreset) {
+                const preset = state.presets.find(p => p.name === state.config.defaultPreset);
+                if (preset) {
+                    // Apply the default preset settings without closing panel
+                    state.settings = { ...preset.settings };
+                    state.currentPreset = preset;
+
+                    // Update UI inputs
+                    flashDurationInput.value = state.settings.flashDuration;
+                    flashIntervalInput.value = state.settings.flashInterval;
+                    batchSizeInput.value = state.settings.batchSize;
+                    batchIntervalInput.value = state.settings.batchInterval;
+                    flashColorInput.value = state.settings.flashColor;
+                    flashColorPicker.value = state.settings.flashColor;
+                    bgColorInput.value = state.settings.bgColor;
+                    bgColorPicker.value = state.settings.bgColor;
+
+                    // Initialize RGB values if preset uses RGB format
+                    if (state.settings.flashColor.startsWith('rgb')) {
+                        const rgb = parseRgb(state.settings.flashColor);
+                        if (rgb) {
+                            flashColorR.value = rgb.r;
+                            flashColorG.value = rgb.g;
+                            flashColorB.value = rgb.b;
+                        }
+                    }
+
+                    if (state.settings.bgColor.startsWith('rgb')) {
+                        const rgb = parseRgb(state.settings.bgColor);
+                        if (rgb) {
+                            bgColorR.value = rgb.r;
+                            bgColorG.value = rgb.g;
+                            bgColorB.value = rgb.b;
+                        }
+                    }
+
+                    // Initialize HSL values if preset uses HSL format
+                    if (state.settings.flashColor.startsWith('hsl')) {
+                        const hsl = parseHsl(state.settings.flashColor);
+                        flashColorH.value = hsl.h;
+                        flashColorS.value = hsl.s;
+                        flashColorL.value = hsl.l;
+                    }
+
+                    if (state.settings.bgColor.startsWith('hsl')) {
+                        const hsl = parseHsl(state.settings.bgColor);
+                        bgColorH.value = hsl.h;
+                        bgColorS.value = hsl.s;
+                        bgColorL.value = hsl.l;
+                    }
+
+                    // Apply CSS variables
+                    document.documentElement.style.setProperty('--flash-color', state.settings.flashColor);
+                    document.documentElement.style.setProperty('--bg-color', state.settings.bgColor);
+
+                    updateSettingsDisplay();
+                    showNotification(`Default preset "${preset.name}" applied`);
+                }
+            }
+
+            if (state.config.autoStart === true) {
+                // Auto-start metronome if configured
+                startMetronome();
+            }
+        }
+
+        // ==================== Modal Handling ====================
+        let modalCallback = null;
+
+        function showModal(title, callback) {
+            modalTitle.textContent = title;
+            presetNameInput.value = '';
+            modalCallback = callback;
+            presetModal.classList.add('visible');
+            modalBackdrop.classList.add('visible');
+            presetNameInput.focus();
+        }
+
+        function hideModal() {
+            presetModal.classList.remove('visible');
+            modalBackdrop.classList.remove('visible');
+            modalCallback = null;
+        }
+
+        // ==================== Event Listeners ====================
+        settingsBtn.addEventListener('click', openSettingsPanel);
+        closeSettingsBtn.addEventListener('click', closeSettingsPanel);
+        cancelBtn.addEventListener('click', closeSettingsPanel);
+        overlayBackdrop.addEventListener('click', closeSettingsPanel);
+        applyBtn.addEventListener('click', applySettings);
+
+        toggleBtn.addEventListener('click', toggleMetronome);
+
+        // Color picker sync
+        flashColorPicker.addEventListener('input', (e) => {
+            flashColorInput.value = e.target.value;
+            flashColorFormat = 'hex';
+            updateColorFormatButtons('flashColorFormat', 'hex');
+        });
+
+        bgColorPicker.addEventListener('input', (e) => {
+            bgColorInput.value = e.target.value;
+            bgColorFormat = 'hex';
+            updateColorFormatButtons('bgColorFormat', 'hex');
+        });
+
+        // Color format selector
+        document.getElementById('flashColorFormat').addEventListener('click', (e) => {
+            if (e.target.classList.contains('color-format-btn')) {
+                flashColorFormat = e.target.dataset.format;
+                updateColorFormatButtons('flashColorFormat', flashColorFormat);
+                updateColorInputPlaceholder(flashColorInput, flashColorFormat);
+                toggleFlashColorFormatUI();
+            }
+        });
+
+        document.getElementById('bgColorFormat').addEventListener('click', (e) => {
+            if (e.target.classList.contains('color-format-btn')) {
+                bgColorFormat = e.target.dataset.format;
+                updateColorFormatButtons('bgColorFormat', bgColorFormat);
+                updateColorInputPlaceholder(bgColorInput, bgColorFormat);
+                toggleBgColorFormatUI();
+            }
+        });
+
+        // RGB color handlers
+        function updateFlashColorRgb() {
+            const r = parseInt(flashColorR.value) || 0;
+            const g = parseInt(flashColorG.value) || 0;
+            const b = parseInt(flashColorB.value) || 0;
+            const rgbColor = `rgb(${r}, ${g}, ${b})`;
+            flashColorInput.value = rgbColor;
+
+            // Update color picker
+            const hex = rgbToHex(r, g, b);
+            flashColorPicker.value = hex;
+
+            // Update CSS for live preview
+            document.documentElement.style.setProperty('--flash-color', rgbColor);
+        }
+
+        function updateBgColorRgb() {
+            const r = parseInt(bgColorR.value) || 0;
+            const g = parseInt(bgColorG.value) || 0;
+            const b = parseInt(bgColorB.value) || 0;
+            const rgbColor = `rgb(${r}, ${g}, ${b})`;
+            bgColorInput.value = rgbColor;
+
+            // Update color picker
+            const hex = rgbToHex(r, g, b);
+            bgColorPicker.value = hex;
+
+            // Update CSS for live preview
+            document.documentElement.style.setProperty('--bg-color', rgbColor);
+        }
+
+        function rgbToHex(r, g, b) {
+            return '#' + [r, g, b].map(x => {
+                const hex = x.toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+            }).join('');
+        }
+
+        function hexToRgb(hex) {
+            const result = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        }
+
+        // HSL color handlers
+        function updateFlashColorHsl() {
+            const h = flashColorH.value;
+            const s = flashColorS.value;
+            const l = flashColorL.value;
+            const hslColor = `hsl(${h}, ${s}%, ${l}%)`;
+            flashColorInput.value = hslColor;
+            flashColorHValue.textContent = `${h}°`;
+            flashColorSValue.textContent = `${s}%`;
+            flashColorLValue.textContent = `${l}%`;
+
+            // Update CSS for live preview
+            document.documentElement.style.setProperty('--flash-color', hslColor);
+        }
+
+        function updateBgColorHsl() {
+            const h = bgColorH.value;
+            const s = bgColorS.value;
+            const l = bgColorL.value;
+            const hslColor = `hsl(${h}, ${s}%, ${l}%)`;
+            bgColorInput.value = hslColor;
+            bgColorHValue.textContent = `${h}°`;
+            bgColorSValue.textContent = `${s}%`;
+            bgColorLValue.textContent = `${l}%`;
+
+            // Update CSS for live preview
+            document.documentElement.style.setProperty('--bg-color', hslColor);
+        }
+
+        function toggleFlashColorFormatUI() {
+            if (flashColorFormat === 'hex') {
+                flashColorContainer.style.display = 'flex';
+                flashColorRgb.style.display = 'none';
+                flashColorHsl.style.display = 'none';
+            } else if (flashColorFormat === 'rgb') {
+                flashColorContainer.style.display = 'none';
+                flashColorRgb.style.display = 'block';
+                flashColorHsl.style.display = 'none';
+            } else if (flashColorFormat === 'hsl') {
+                flashColorContainer.style.display = 'none';
+                flashColorRgb.style.display = 'none';
+                flashColorHsl.style.display = 'block';
+            }
+        }
+
+        function toggleBgColorFormatUI() {
+            if (bgColorFormat === 'hex') {
+                bgColorContainer.style.display = 'flex';
+                bgColorRgb.style.display = 'none';
+                bgColorHsl.style.display = 'none';
+            } else if (bgColorFormat === 'rgb') {
+                bgColorContainer.style.display = 'none';
+                bgColorRgb.style.display = 'block';
+                bgColorHsl.style.display = 'none';
+            } else if (bgColorFormat === 'hsl') {
+                bgColorContainer.style.display = 'none';
+                bgColorRgb.style.display = 'none';
+                bgColorHsl.style.display = 'block';
+            }
+        }
+
+        // Add RGB event listeners
+        [flashColorR, flashColorG, flashColorB].forEach(input => {
+            input.addEventListener('input', updateFlashColorRgb);
+        });
+
+        [bgColorR, bgColorG, bgColorB].forEach(input => {
+            input.addEventListener('input', updateBgColorRgb);
+        });
+
+        // Add HSL event listeners
+        [flashColorH, flashColorS, flashColorL].forEach(slider => {
+            slider.addEventListener('input', updateFlashColorHsl);
+        });
+
+        [bgColorH, bgColorS, bgColorL].forEach(slider => {
+            slider.addEventListener('input', updateBgColorHsl);
+        });
+
+        // Parse RGB color to components for initialization
+        function parseRgb(rgbString) {
+            const match = rgbString.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+            if (match) {
+                return {
+                    r: parseInt(match[1]),
+                    g: parseInt(match[2]),
+                    b: parseInt(match[3])
+                };
+            }
+            return null;
+        }
+
+        // Parse HSL color to components for initialization
+        function parseHsl(hslString) {
+            const match = hslString.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+            if (match) {
+                return {
+                    h: parseInt(match[1]),
+                    s: parseInt(match[2]),
+                    l: parseInt(match[3])
+                };
+            }
+            return { h: 0, s: 100, l: 50 };
+        }
+
+        // Preset management
+        savePresetBtn.addEventListener('click', () => {
+            showModal('Save Preset', (name) => {
+                if (name.trim()) {
+                    // Check if preset already exists
+                    const existingIndex = state.presets.findIndex(p => p.name === name);
+                    const newPreset = createPresetObject(name);
+
+                    if (existingIndex >= 0) {
+                        // Update existing preset
+                        state.presets[existingIndex] = newPreset;
+                    } else {
+                        // Add new preset
+                        state.presets.push(newPreset);
+                    }
+
+                    savePresetsToStorage();
+                    renderPresetList();
+                    showNotification(`Preset "${name}" saved`);
+                }
+            });
+        });
+
+        loadPresetBtn.addEventListener('click', () => {
+            renderPresetList();
+            showNotification('Click a preset to load it');
+        });
+
+        exportPresetBtn.addEventListener('click', exportCurrentPreset);
+
+        importPresetBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        document.getElementById('saveConfigBtn').addEventListener('click', saveConfigToFile);
+
+        fileInput.addEventListener('change', importPreset);
+
+        // Modal handling
+        modalCancelBtn.addEventListener('click', hideModal);
+        modalOkBtn.addEventListener('click', () => {
+            if (modalCallback && presetNameInput.value.trim()) {
+                modalCallback(presetNameInput.value.trim());
+                hideModal();
+            }
+        });
+
+        modalBackdrop.addEventListener('click', hideModal);
+
+        presetNameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                modalOkBtn.click();
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (presetModal.classList.contains('visible')) {
+                    hideModal();
+                } else {
+                    closeSettingsPanel();
+                }
+            }
+            if (e.key === ' ' && !settingsPanel.classList.contains('visible') && !presetModal.classList.contains('visible')) {
+                e.preventDefault();
+                toggleMetronome();
+            }
+        });
+
+        // ==================== Initialize ====================
+        async function init() {
+            loadPresetsFromStorage();
+            renderColorPresets();
+            updateSettingsDisplay();
+
+            // Load config first
+            await loadConfig();
+
+            // Show settings panel on startup
+            setTimeout(() => {
+                openSettingsPanel();
+            }, 100);
+        }
+
+        // Make functions globally accessible for onclick handlers
+        Object.assign(window, {
+            loadPresetByName,
+            deletePresetByName,
+            setDefaultPreset
+        });
+
+        // Start the app
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "defaultPreset": "default",
+  "description": "Visual Metronome Configuration File",
+  "presets": [
+    {
+      "name": "default",
+      "timestamp": 1778253392346,
+      "settings": {
+        "flashDuration": 0.1,
+        "flashInterval": 3,
+        "batchSize": 8,
+        "batchInterval": 15,
+        "flashColor": "#00ff00",
+        "bgColor": "hsl(0, 0%, 100%)"
+      }
+    }
+  ]
+}

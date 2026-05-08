@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Metronome</title>
+    <style>
+        :root {
+            /* Design Tokens */
+            --bg-color: #0a0a0a;
+            --panel-bg: rgba(20, 20, 20, 0.95);
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+            --accent-color: #00ff88;
+            --flash-color: #ff0000;
+            --border-color: #333333;
+            --border-radius: 8px;
+            --spacing-unit: 8px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+            /* User Settings */
+            --user-flash-color: #ff0000;
+            --user-bg-color: #0a0a0a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow: hidden;
+            transition: background-color 0.1s ease;
+        }
+
+        .flash-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0;
+            background-color: var(--flash-color);
+            z-index: 100;
+            transition: opacity 0.05s ease;
+        }
+
+        .flash-overlay.active {
+            opacity: 1;
+        }
+
+        /* Settings Info Display */
+        .settings-info {
+            position: fixed;
+            top: var(--spacing-unit);
+            left: var(--spacing-unit);
+            background: var(--panel-bg);
+            padding: 12px 16px;
+            border-radius: var(--border-radius);
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            z-index: 50;
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+        }
+
+        .settings-info .label {
+            color: var(--text-secondary);
+            margin-right: 8px;
+        }
+
+        .settings-info .value {
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+
+        .settings-info .color-preview {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            margin-left: 8px;
+            vertical-align: middle;
+            border: 1px solid var(--border-color);
+        }
+
+        /* Control Panel */
+        .control-panel {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 16px;
+            z-index: 50;
+        }
+
+        .btn {
+            background: var(--panel-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: var(--transition);
+            backdrop-filter: blur(10px);
+        }
+
+        .btn:hover {
+            background: rgba(40, 40, 40, 1);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn.primary {
+            background: var(--accent-color);
+            color: #000;
+            border-color: var(--accent-color);
+        }
+
+        .btn.primary:hover {
+            background: #00e67a;
+        }
+
+        .btn.danger {
+            background: #ff4444;
+            color: white;
+            border-color: #ff4444;
+        }
+
+        .btn.danger:hover {
+            background: #ff3333;
+        }
+
+        /* Settings Panel */
+        .settings-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--panel-bg);
+            padding: 32px;
+            border-radius: var(--border-radius);
+            min-width: 400px;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            display: none;
+        }
+
+        .settings-panel.visible {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -45%);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%);
+            }
+        }
+
+        .settings-panel h2 {
+            margin-bottom: 24px;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .settings-group {
+            margin-bottom: 20px;
+        }
+
+        .settings-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .settings-group input[type="number"] {
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(30, 30, 30, 1);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .settings-group input[type="number"]:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .settings-group input[type="color"] {
+            width: 100%;
+            height: 40px;
+            padding: 4px;
+            background: rgba(30, 30, 30, 1);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            cursor: pointer;
+        }
+
+        .color-format-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .color-format-btn {
+            flex: 1;
+            padding: 8px;
+            background: rgba(30, 30, 30, 1);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .color-format-btn.active {
+            background: var(--accent-color);
+            color: #000;
+            border-color: var(--accent-color);
+        }
+
+        .color-input-container {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .color-input-container input[type="text"] {
+            flex: 1;
+            padding: 10px 12px;
+            background: rgba(30, 30, 30, 1);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .color-input-container input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .settings-footer {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+            justify-content: flex-end;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 24px;
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: var(--transition);
+        }
+
+        .close-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        /* Overlay backdrop */
+        .overlay-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 90;
+            display: none;
+            backdrop-filter: blur(4px);
+        }
+
+        .overlay-backdrop.visible {
+            display: block;
+        }
+
+        /* Status indicator */
+        .status-indicator {
+            position: fixed;
+            top: var(--spacing-unit);
+            right: var(--spacing-unit);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--panel-bg);
+            padding: 8px 16px;
+            border-radius: var(--border-radius);
+            font-size: 12px;
+            z-index: 50;
+            border: 1px solid var(--border-color);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #666;
+            transition: var(--transition);
+        }
+
+        .status-dot.active {
+            background: var(--accent-color);
+            box-shadow: 0 0 8px var(--accent-color);
+        }
+
+        .status-dot.flashing {
+            background: #ff0000;
+            box-shadow: 0 0 16px #ff0000;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .settings-panel {
+                width: 90%;
+                min-width: unset;
+                padding: 24px;
+            }
+
+            .control-panel {
+                width: 90%;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .btn {
+                flex: 1;
+                min-width: 120px;
+            }
+
+            .settings-info {
+                font-size: 10px;
+                padding: 8px 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Flash Overlay -->
+    <div class="flash-overlay" id="flashOverlay"></div>
+
+    <!-- Settings Info Display -->
+    <div class="settings-info" id="settingsInfo">
+        <div><span class="label">Flash Duration:</span><span class="value" id="infoFlashDuration">0.1s</span></div>
+        <div><span class="label">Flash Interval:</span><span class="value" id="infoFlashInterval">1s</span></div>
+        <div><span class="label">Batch Size:</span><span class="value" id="infoBatchSize">3</span></div>
+        <div><span class="label">Batch Interval:</span><span class="value" id="infoBatchInterval">3s</span></div>
+        <div><span class="label">Flash Color:</span><span class="value" id="infoFlashColor">#ff0000</span><span class="color-preview" id="flashColorPreview" style="background: #ff0000;"></span></div>
+        <div><span class="label">BG Color:</span><span class="value" id="infoBgColor">#0a0a0a</span><span class="color-preview" id="bgColorPreview" style="background: #0a0a0a;"></span></div>
+    </div>
+
+    <!-- Status Indicator -->
+    <div class="status-indicator">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Stopped</span>
+    </div>
+
+    <!-- Control Panel -->
+    <div class="control-panel">
+        <button class="btn" id="settingsBtn">⚙️ Settings</button>
+        <button class="btn primary" id="startBtn">▶ Start</button>
+        <button class="btn danger" id="stopBtn">⏹ Stop</button>
+    </div>
+
+    <!-- Settings Panel -->
+    <div class="overlay-backdrop" id="overlayBackdrop"></div>
+    <div class="settings-panel" id="settingsPanel">
+        <button class="close-btn" id="closeSettingsBtn">✕</button>
+        <h2>Settings</h2>
+
+        <div class="settings-group">
+            <label>Flash Duration (seconds)</label>
+            <input type="number" id="flashDuration" min="0.01" max="10" step="0.01" value="0.1">
+        </div>
+
+        <div class="settings-group">
+            <label>Flash Interval (seconds)</label>
+            <input type="number" id="flashInterval" min="0.1" max="60" step="0.1" value="1">
+        </div>
+
+        <div class="settings-group">
+            <label>Batch Size</label>
+            <input type="number" id="batchSize" min="1" max="100" step="1" value="3">
+        </div>
+
+        <div class="settings-group">
+            <label>Batch Interval (seconds)</label>
+            <input type="number" id="batchInterval" min="0.1" max="60" step="0.1" value="3">
+        </div>
+
+        <div class="settings-group">
+            <label>Flash Color</label>
+            <div class="color-format-selector" id="flashColorFormat">
+                <button class="color-format-btn active" data-format="hex">HEX</button>
+                <button class="color-format-btn" data-format="rgb">RGB</button>
+                <button class="color-format-btn" data-format="hsl">HSL</button>
+            </div>
+            <div class="color-input-container">
+                <input type="text" id="flashColorInput" value="#ff0000" placeholder="#ff0000">
+                <input type="color" id="flashColorPicker" value="#ff0000">
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <label>Background Color</label>
+            <div class="color-format-selector" id="bgColorFormat">
+                <button class="color-format-btn active" data-format="hex">HEX</button>
+                <button class="color-format-btn" data-format="rgb">RGB</button>
+                <button class="color-format-btn" data-format="hsl">HSL</button>
+            </div>
+            <div class="color-input-container">
+                <input type="text" id="bgColorInput" value="#0a0a0a" placeholder="#0a0a0a">
+                <input type="color" id="bgColorPicker" value="#0a0a0a">
+            </div>
+        </div>
+
+        <div class="settings-footer">
+            <button class="btn" id="cancelBtn">Cancel</button>
+            <button class="btn primary" id="applyBtn">Apply</button>
+        </div>
+    </div>
+
+    <script>
+        // State Management
+        const state = {
+            settings: {
+                flashDuration: 0.1,
+                flashInterval: 1,
+                batchSize: 3,
+                batchInterval: 3,
+                flashColor: '#ff0000',
+                bgColor: '#0a0a0a'
+            },
+            isRunning: false,
+            currentBatch: 0,
+            currentFlash: 0,
+            timeouts: [],
+            intervals: []
+        };
+
+        // DOM Elements
+        const flashOverlay = document.getElementById('flashOverlay');
+        const settingsPanel = document.getElementById('settingsPanel');
+        const overlayBackdrop = document.getElementById('overlayBackdrop');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const applyBtn = document.getElementById('applyBtn');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+
+        // Settings inputs
+        const flashDurationInput = document.getElementById('flashDuration');
+        const flashIntervalInput = document.getElementById('flashInterval');
+        const batchSizeInput = document.getElementById('batchSize');
+        const batchIntervalInput = document.getElementById('batchInterval');
+        const flashColorInput = document.getElementById('flashColorInput');
+        const flashColorPicker = document.getElementById('flashColorPicker');
+        const bgColorInput = document.getElementById('bgColorInput');
+        const bgColorPicker = document.getElementById('bgColorPicker');
+
+        // Info display elements
+        const infoFlashDuration = document.getElementById('infoFlashDuration');
+        const infoFlashInterval = document.getElementById('infoFlashInterval');
+        const infoBatchSize = document.getElementById('infoBatchSize');
+        const infoBatchInterval = document.getElementById('infoBatchInterval');
+        const infoFlashColor = document.getElementById('infoFlashColor');
+        const infoBgColor = document.getElementById('infoBgColor');
+        const flashColorPreview = document.getElementById('flashColorPreview');
+        const bgColorPreview = document.getElementById('bgColorPreview');
+
+        // Color format management
+        let flashColorFormat = 'hex';
+        let bgColorFormat = 'hex';
+
+        // Utility functions
+        function clearTimers() {
+            state.timeouts.forEach(id => clearTimeout(id));
+            state.intervals.forEach(id => clearInterval(id));
+            state.timeouts = [];
+            state.intervals = [];
+        }
+
+        function updateSettingsDisplay() {
+            const s = state.settings;
+            infoFlashDuration.textContent = `${s.flashDuration}s`;
+            infoFlashInterval.textContent = `${s.flashInterval}s`;
+            infoBatchSize.textContent = s.batchSize;
+            infoBatchInterval.textContent = `${s.batchInterval}s`;
+            infoFlashColor.textContent = s.flashColor;
+            infoBgColor.textContent = s.bgColor;
+            flashColorPreview.style.background = s.flashColor;
+            bgColorPreview.style.background = s.bgColor;
+        }
+
+        function applySettings() {
+            state.settings.flashDuration = parseFloat(flashDurationInput.value);
+            state.settings.flashInterval = parseFloat(flashIntervalInput.value);
+            state.settings.batchSize = parseInt(batchSizeInput.value);
+            state.settings.batchInterval = parseFloat(batchIntervalInput.value);
+            state.settings.flashColor = flashColorInput.value;
+            state.settings.bgColor = bgColorInput.value;
+
+            // Apply CSS variables
+            document.documentElement.style.setProperty('--flash-color', state.settings.flashColor);
+            document.documentElement.style.setProperty('--bg-color', state.settings.bgColor);
+
+            updateSettingsDisplay();
+            closeSettingsPanel();
+        }
+
+        function openSettingsPanel() {
+            // Populate current values
+            flashDurationInput.value = state.settings.flashDuration;
+            flashIntervalInput.value = state.settings.flashInterval;
+            batchSizeInput.value = state.settings.batchSize;
+            batchIntervalInput.value = state.settings.batchInterval;
+            flashColorInput.value = state.settings.flashColor;
+            flashColorPicker.value = state.settings.flashColor;
+            bgColorInput.value = state.settings.bgColor;
+            bgColorPicker.value = state.settings.bgColor;
+
+            settingsPanel.classList.add('visible');
+            overlayBackdrop.classList.add('visible');
+        }
+
+        function closeSettingsPanel() {
+            settingsPanel.classList.remove('visible');
+            overlayBackdrop.classList.remove('visible');
+        }
+
+        // Metronome Logic
+        function flashScreen() {
+            statusDot.classList.add('flashing');
+            flashOverlay.classList.add('active');
+
+            setTimeout(() => {
+                flashOverlay.classList.remove('active');
+                statusDot.classList.remove('flashing');
+            }, state.settings.flashDuration * 1000);
+        }
+
+        function runMetronome() {
+            if (!state.isRunning) return;
+
+            const s = state.settings;
+            const flashDelay = s.flashInterval * 1000;
+            const batchDelay = s.batchInterval * 1000;
+
+            function runBatch() {
+                if (!state.isRunning) return;
+
+                state.currentBatch++;
+                state.currentFlash = 0;
+
+                function runFlash() {
+                    if (!state.isRunning) return;
+
+                    state.currentFlash++;
+                    flashScreen();
+
+                    if (state.currentFlash < s.batchSize) {
+                        const timeoutId = setTimeout(runFlash, flashDelay);
+                        state.timeouts.push(timeoutId);
+                    } else {
+                        // Batch complete, wait for batch interval
+                        const timeoutId = setTimeout(runBatch, batchDelay);
+                        state.timeouts.push(timeoutId);
+                    }
+                }
+
+                // Start first flash of batch
+                const timeoutId = setTimeout(runFlash, 100); // Small delay to ensure smooth start
+                state.timeouts.push(timeoutId);
+            }
+
+            // Start first batch
+            runBatch();
+        }
+
+        function startMetronome() {
+            if (state.isRunning) return;
+
+            state.isRunning = true;
+            state.currentBatch = 0;
+            state.currentFlash = 0;
+
+            statusDot.classList.add('active');
+            statusText.textContent = 'Running';
+            startBtn.disabled = true;
+            startBtn.textContent = '▶ Running';
+
+            runMetronome();
+        }
+
+        function stopMetronome() {
+            state.isRunning = false;
+            clearTimers();
+
+            flashOverlay.classList.remove('active');
+            statusDot.classList.remove('active');
+            statusDot.classList.remove('flashing');
+            statusText.textContent = 'Stopped';
+            startBtn.disabled = false;
+            startBtn.textContent = '▶ Start';
+        }
+
+        // Color format handling
+        function parseColor(color) {
+            // Try to detect format and normalize
+            if (color.startsWith('#')) {
+                return { format: 'hex', value: color };
+            } else if (color.startsWith('rgb')) {
+                return { format: 'rgb', value: color };
+            } else if (color.startsWith('hsl')) {
+                return { format: 'hsl', value: color };
+            }
+            return { format: 'hex', value: '#ff0000' };
+        }
+
+        function syncColorInputs(input, picker, format) {
+            const color = input.value;
+
+            if (format === 'hex' && color.startsWith('#')) {
+                picker.value = color;
+            } else {
+                // For non-hex formats, try to convert or keep as-is
+                try {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.style.color = color;
+                    document.body.appendChild(tempDiv);
+                    const computed = window.getComputedStyle(tempDiv).color;
+                    document.body.removeChild(tempDiv);
+
+                    // Convert computed RGB to HEX for picker
+                    const rgb = computed.match(/\d+/g);
+                    if (rgb) {
+                        const hex = '#' + rgb.map(x => parseInt(x).toString(16).padStart(2, '0')).join('');
+                        picker.value = hex;
+                    }
+                } catch (e) {
+                    console.log('Color conversion error:', e);
+                }
+            }
+        }
+
+        // Event Listeners
+        settingsBtn.addEventListener('click', openSettingsPanel);
+        closeSettingsBtn.addEventListener('click', closeSettingsPanel);
+        cancelBtn.addEventListener('click', closeSettingsPanel);
+        overlayBackdrop.addEventListener('click', closeSettingsPanel);
+        applyBtn.addEventListener('click', applySettings);
+
+        startBtn.addEventListener('click', startMetronome);
+        stopBtn.addEventListener('click', stopMetronome);
+
+        // Color picker sync
+        flashColorPicker.addEventListener('input', (e) => {
+            flashColorInput.value = e.target.value;
+            flashColorFormat = 'hex';
+            updateColorFormatButtons('flashColorFormat', 'hex');
+        });
+
+        bgColorPicker.addEventListener('input', (e) => {
+            bgColorInput.value = e.target.value;
+            bgColorFormat = 'hex';
+            updateColorFormatButtons('bgColorFormat', 'hex');
+        });
+
+        // Color format selector
+        document.getElementById('flashColorFormat').addEventListener('click', (e) => {
+            if (e.target.classList.contains('color-format-btn')) {
+                flashColorFormat = e.target.dataset.format;
+                updateColorFormatButtons('flashColorFormat', flashColorFormat);
+                updateColorInputPlaceholder(flashColorInput, flashColorFormat);
+            }
+        });
+
+        document.getElementById('bgColorFormat').addEventListener('click', (e) => {
+            if (e.target.classList.contains('color-format-btn')) {
+                bgColorFormat = e.target.dataset.format;
+                updateColorFormatButtons('bgColorFormat', bgColorFormat);
+                updateColorInputPlaceholder(bgColorInput, bgColorFormat);
+            }
+        });
+
+        function updateColorFormatButtons(containerId, activeFormat) {
+            const container = document.getElementById(containerId);
+            container.querySelectorAll('.color-format-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.format === activeFormat);
+            });
+        }
+
+        function updateColorInputPlaceholder(input, format) {
+            const placeholders = {
+                hex: '#ff0000',
+                rgb: 'rgb(255, 0, 0)',
+                hsl: 'hsl(0, 100%, 50%)'
+            };
+            input.placeholder = placeholders[format];
+        }
+
+        // Initialize
+        updateSettingsDisplay();
+        applySettings();
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeSettingsPanel();
+            }
+            if (e.key === ' ' && !settingsPanel.classList.contains('visible')) {
+                e.preventDefault();
+                if (state.isRunning) {
+                    stopMetronome();
+                } else {
+                    startMetronome();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
