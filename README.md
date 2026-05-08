@@ -32,7 +32,7 @@
 
 ### 基本操作
 
-1. **启动程序**：打开 `Visual Metronome Enhanced.html`
+1. **启动程序**：打开 `visualTimeCode.html`
 2. **配置设置**：启动时会自动显示设置面板
 3. **开始节拍**：点击 "▶ Start" 按钮或按空格键
 4. **停止节拍**：点击 "⏹ Stop" 按钮或再次按空格键
@@ -151,7 +151,7 @@
 
 ## 文件说明
 
-- `Visual Metronome Enhanced.html` - 主程序文件
+- `visualTimeCode.html` - 主程序文件
 - `config.json` - 配置文件示例
 - `README.md` - 使用说明文档
 
