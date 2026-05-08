@@ -1,4 +1,4 @@
-# Visual Metronome Enhanced
+# visualTimeCode
 
 一个功能丰富的轻量级视觉节拍器，通过屏幕闪烁提供节拍提示。
 
