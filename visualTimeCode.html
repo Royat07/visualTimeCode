@@ -330,6 +330,17 @@
             border-color: var(--accent-color);
         }
 
+        .color-input-container input[type="color"] {
+            width: 50px;
+            height: 40px;
+            padding: 4px;
+            background: rgba(30, 30, 30, 1);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
         /* Preset Management */
         .preset-controls {
             display: flex;
@@ -806,7 +817,7 @@
                         <button class="color-format-btn" data-format="rgb">RGB</button>
                         <button class="color-format-btn" data-format="hsl">HSL</button>
                     </div>
-                    <div class="color-input-container hex-input" id="flashColorContainer">
+                    <div class="color-input-container">
                         <input type="text" id="flashColorInput" value="#ff0000" placeholder="#ff0000">
                         <input type="color" id="flashColorPicker" value="#ff0000">
                     </div>
@@ -850,7 +861,7 @@
                         <button class="color-format-btn" data-format="rgb">RGB</button>
                         <button class="color-format-btn" data-format="hsl">HSL</button>
                     </div>
-                    <div class="color-input-container hex-input" id="bgColorContainer">
+                    <div class="color-input-container">
                         <input type="text" id="bgColorInput" value="#0a0a0a" placeholder="#0a0a0a">
                         <input type="color" id="bgColorPicker" value="#0a0a0a">
                     </div>
@@ -986,7 +997,6 @@
         const batchIntervalInput = document.getElementById('batchInterval');
         const flashColorInput = document.getElementById('flashColorInput');
         const flashColorPicker = document.getElementById('flashColorPicker');
-        const flashColorContainer = document.getElementById('flashColorContainer');
         const flashColorRgb = document.getElementById('flashColorRgb');
         const flashColorHsl = document.getElementById('flashColorHsl');
         const flashColorR = document.getElementById('flashColorR');
@@ -1000,7 +1010,6 @@
         const flashColorLValue = document.getElementById('flashColorLValue');
         const bgColorInput = document.getElementById('bgColorInput');
         const bgColorPicker = document.getElementById('bgColorPicker');
-        const bgColorContainer = document.getElementById('bgColorContainer');
         const bgColorRgb = document.getElementById('bgColorRgb');
         const bgColorHsl = document.getElementById('bgColorHsl');
         const bgColorR = document.getElementById('bgColorR');
@@ -1671,6 +1680,27 @@
             updateColorFormatButtons('bgColorFormat', 'hex');
         });
 
+        // Text input sync to color picker
+        flashColorInput.addEventListener('input', (e) => {
+            const value = e.target.value;
+            if (value.startsWith('#') && value.length === 7) {
+                // Check if it's a valid HEX color
+                if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                    flashColorPicker.value = value;
+                }
+            }
+        });
+
+        bgColorInput.addEventListener('input', (e) => {
+            const value = e.target.value;
+            if (value.startsWith('#') && value.length === 7) {
+                // Check if it's a valid HEX color
+                if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                    bgColorPicker.value = value;
+                }
+            }
+        });
+
         // Color format selector
         document.getElementById('flashColorFormat').addEventListener('click', (e) => {
             if (e.target.classList.contains('color-format-btn')) {
@@ -1767,32 +1797,38 @@
         }
 
         function toggleFlashColorFormatUI() {
+            const flashColorSettings = document.getElementById('flashColorFormat').parentElement;
+            const hexInput = flashColorSettings.querySelector('.color-input-container');
+
             if (flashColorFormat === 'hex') {
-                flashColorContainer.style.display = 'flex';
+                hexInput.style.display = 'flex';
                 flashColorRgb.style.display = 'none';
                 flashColorHsl.style.display = 'none';
             } else if (flashColorFormat === 'rgb') {
-                flashColorContainer.style.display = 'none';
+                hexInput.style.display = 'none';
                 flashColorRgb.style.display = 'block';
                 flashColorHsl.style.display = 'none';
             } else if (flashColorFormat === 'hsl') {
-                flashColorContainer.style.display = 'none';
+                hexInput.style.display = 'none';
                 flashColorRgb.style.display = 'none';
                 flashColorHsl.style.display = 'block';
             }
         }
 
         function toggleBgColorFormatUI() {
+            const bgColorSettings = document.getElementById('bgColorFormat').parentElement;
+            const hexInput = bgColorSettings.querySelector('.color-input-container');
+
             if (bgColorFormat === 'hex') {
-                bgColorContainer.style.display = 'flex';
+                hexInput.style.display = 'flex';
                 bgColorRgb.style.display = 'none';
                 bgColorHsl.style.display = 'none';
             } else if (bgColorFormat === 'rgb') {
-                bgColorContainer.style.display = 'none';
+                hexInput.style.display = 'none';
                 bgColorRgb.style.display = 'block';
                 bgColorHsl.style.display = 'none';
             } else if (bgColorFormat === 'hsl') {
-                bgColorContainer.style.display = 'none';
+                hexInput.style.display = 'none';
                 bgColorRgb.style.display = 'none';
                 bgColorHsl.style.display = 'block';
             }
@@ -1917,6 +1953,10 @@
             loadPresetsFromStorage();
             renderColorPresets();
             updateSettingsDisplay();
+
+            // Initialize color format UI
+            toggleFlashColorFormatUI();
+            toggleBgColorFormatUI();
 
             // Load config first
             await loadConfig();
